@@ -80,6 +80,11 @@ var pullImageCommand = &cli.Command{
 			Aliases: []string{"a"},
 			Usage:   "Annotation to be set on the pulled image",
 		},
+		&cli.StringSliceFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Usage:   "runtime class this image is being pulled for",
+		},
 	},
 	ArgsUsage: "NAME[:TAG|@DIGEST]",
 	Action: func(c *cli.Context) error {
@@ -116,7 +121,7 @@ var pullImageCommand = &cli.Command{
 				return err
 			}
 		}
-		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann)
+		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann, c.String("runtime"))
 		if err != nil {
 			return fmt.Errorf("pulling image: %w", err)
 		}
@@ -588,12 +593,14 @@ func normalizeRepoDigest(repoDigests []string) (string, string) {
 
 // PullImageWithSandbox sends a PullImageRequest to the server, and parses
 // the returned PullImageResponse.
-func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string) (*pb.PullImageResponse, error) {
+func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string, runtime string) (*pb.PullImageResponse, error) {
 	request := &pb.PullImageRequest{
 		Image: &pb.ImageSpec{
 			Image:       image,
 			Annotations: ann,
+			RuntimeHandler: runtime,
 		},
+		// runtimeclass info to be set?
 	}
 	if auth != nil {
 		request.Auth = auth

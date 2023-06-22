@@ -80,6 +80,12 @@ var pullImageCommand = &cli.Command{
 			Aliases: []string{"a"},
 			Usage:   "Annotation to be set on the pulled image",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value:	"",
+			Usage:   "Runtime handler to be used to pull the image",
+		},
 	},
 	ArgsUsage: "NAME[:TAG|@DIGEST]",
 	Action: func(c *cli.Context) error {
@@ -116,7 +122,7 @@ var pullImageCommand = &cli.Command{
 				return err
 			}
 		}
-		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann)
+		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann, c.String("runtime"))
 		if err != nil {
 			return fmt.Errorf("pulling image: %w", err)
 		}
@@ -192,6 +198,7 @@ var listImageCommand = &cli.Command{
 		noTrunc := c.Bool("no-trunc")
 		if !verbose && !quiet {
 			row := []string{columnImage, columnTag}
+			//after columnImage add runtimeHandler
 			if showDigest {
 				row = append(row, columnDigest)
 			}
@@ -352,6 +359,12 @@ var removeImageCommand = &cli.Command{
 			Aliases: []string{"q"},
 			Usage:   "Remove all unused images",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value: "",
+			Usage:   "Runtime of the image to be removed as multiple images might exist for different runtime types",
+		},
 	},
 	Action: func(cliCtx *cli.Context) error {
 		imageClient, err := getImageService(cliCtx)
@@ -433,7 +446,7 @@ var removeImageCommand = &cli.Command{
 				continue
 			}
 
-			if err := RemoveImage(imageClient, id); err != nil {
+			if err := RemoveImage(imageClient, id, cliCtx.String("runtime")); err != nil {
 				// We ignore further errors on prune because there might be
 				// races
 				if !prune {
@@ -608,11 +621,12 @@ func normalizeRepoDigest(repoDigests []string) (string, string) {
 
 // PullImageWithSandbox sends a PullImageRequest to the server, and parses
 // the returned PullImageResponse.
-func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string) (*pb.PullImageResponse, error) {
+func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string, runtime string) (*pb.PullImageResponse, error) {
 	request := &pb.PullImageRequest{
 		Image: &pb.ImageSpec{
 			Image:       image,
 			Annotations: ann,
+			RuntimeHandler: runtime,
 		},
 	}
 	if auth != nil {
@@ -663,11 +677,11 @@ func ImageStatus(client internalapi.ImageManagerService, image string, verbose b
 
 // RemoveImage sends a RemoveImageRequest to the server, and parses
 // the returned RemoveImageResponse.
-func RemoveImage(client internalapi.ImageManagerService, image string) error {
+func RemoveImage(client internalapi.ImageManagerService, image string, runtimeHandler string) error {
 	if image == "" {
 		return fmt.Errorf("ImageID cannot be empty")
 	}
-	request := &pb.RemoveImageRequest{Image: &pb.ImageSpec{Image: image}}
+	request := &pb.RemoveImageRequest{Image: &pb.ImageSpec{Image: image, RuntimeHandler: runtimeHandler}}
 	logrus.Debugf("RemoveImageRequest: %v", request)
 	if err := client.RemoveImage(context.TODO(), request.Image); err != nil {
 		return err

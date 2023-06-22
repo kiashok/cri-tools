@@ -80,6 +80,12 @@ var pullImageCommand = &cli.Command{
 			Aliases: []string{"a"},
 			Usage:   "Annotation to be set on the pulled image",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value:   "",
+			Usage:   "Runtime handler to be used to pull the image",
+		},
 	},
 	ArgsUsage: "NAME[:TAG|@DIGEST]",
 	Action: func(c *cli.Context) error {
@@ -116,7 +122,7 @@ var pullImageCommand = &cli.Command{
 				return err
 			}
 		}
-		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann)
+		r, err := PullImageWithSandbox(imageClient, imageName, auth, sandbox, ann, c.String("runtime"))
 		if err != nil {
 			return fmt.Errorf("pulling image: %w", err)
 		}
@@ -274,6 +280,12 @@ var imageStatusCommand = &cli.Command{
 			Name:  "template",
 			Usage: "The template string is only used when output is go-template; The Template format is golang template",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value:   "",
+			Usage:   "Runtime of the image to be removed as multiple images might exist for different runtime types",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		if c.NArg() == 0 {
@@ -293,7 +305,7 @@ var imageStatusCommand = &cli.Command{
 		for i := 0; i < c.NArg(); i++ {
 			id := c.Args().Get(i)
 
-			r, err := ImageStatus(imageClient, id, verbose)
+			r, err := ImageStatus(imageClient, id, verbose, c.String("runtime"))
 			if err != nil {
 				return fmt.Errorf("image status for %q request: %w", id, err)
 			}
@@ -352,6 +364,12 @@ var removeImageCommand = &cli.Command{
 			Aliases: []string{"q"},
 			Usage:   "Remove all unused images",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value:   "",
+			Usage:   "Runtime of the image to be removed as multiple images might exist for different runtime types",
+		},
 	},
 	Action: func(cliCtx *cli.Context) error {
 		imageClient, err := getImageService(cliCtx)
@@ -394,7 +412,8 @@ var removeImageCommand = &cli.Command{
 			}
 			for _, container := range containers {
 				img := container.GetImage().Image
-				imageStatus, err := ImageStatus(imageClient, img, false)
+				runtimeHandler := container.GetImage().GetRuntimeHandler()
+				imageStatus, err := ImageStatus(imageClient, img, false, runtimeHandler)
 				if err != nil {
 					logrus.Errorf(
 						"image status request for %q failed: %v",
@@ -421,7 +440,7 @@ var removeImageCommand = &cli.Command{
 			if !remove {
 				continue
 			}
-			status, err := ImageStatus(imageClient, id, false)
+			status, err := ImageStatus(imageClient, id, false, cliCtx.String("runtime"))
 			if err != nil {
 				logrus.Errorf("image status request for %q failed: %v", id, err)
 				errored = true
@@ -433,7 +452,7 @@ var removeImageCommand = &cli.Command{
 				continue
 			}
 
-			if err := RemoveImage(imageClient, id); err != nil {
+			if err := RemoveImage(imageClient, id, cliCtx.String("runtime")); err != nil {
 				// We ignore further errors on prune because there might be
 				// races
 				if !prune {
@@ -613,11 +632,12 @@ func normalizeRepoDigest(repoDigests []string) (string, string) {
 
 // PullImageWithSandbox sends a PullImageRequest to the server, and parses
 // the returned PullImageResponse.
-func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string) (*pb.PullImageResponse, error) {
+func PullImageWithSandbox(client internalapi.ImageManagerService, image string, auth *pb.AuthConfig, sandbox *pb.PodSandboxConfig, ann map[string]string, runtime string) (*pb.PullImageResponse, error) {
 	request := &pb.PullImageRequest{
 		Image: &pb.ImageSpec{
-			Image:       image,
-			Annotations: ann,
+			Image:          image,
+			Annotations:    ann,
+			RuntimeHandler: runtime,
 		},
 	}
 	if auth != nil {
@@ -652,9 +672,9 @@ func ListImages(client internalapi.ImageManagerService, image string) (*pb.ListI
 
 // ImageStatus sends an ImageStatusRequest to the server, and parses
 // the returned ImageStatusResponse.
-func ImageStatus(client internalapi.ImageManagerService, image string, verbose bool) (*pb.ImageStatusResponse, error) {
+func ImageStatus(client internalapi.ImageManagerService, image string, verbose bool, runtimeHandler string) (*pb.ImageStatusResponse, error) {
 	request := &pb.ImageStatusRequest{
-		Image:   &pb.ImageSpec{Image: image},
+		Image:   &pb.ImageSpec{Image: image, RuntimeHandler: runtimeHandler},
 		Verbose: verbose,
 	}
 	logrus.Debugf("ImageStatusRequest: %v", request)
@@ -668,11 +688,11 @@ func ImageStatus(client internalapi.ImageManagerService, image string, verbose b
 
 // RemoveImage sends a RemoveImageRequest to the server, and parses
 // the returned RemoveImageResponse.
-func RemoveImage(client internalapi.ImageManagerService, image string) error {
+func RemoveImage(client internalapi.ImageManagerService, image string, runtimeHandler string) error {
 	if image == "" {
 		return fmt.Errorf("ImageID cannot be empty")
 	}
-	request := &pb.RemoveImageRequest{Image: &pb.ImageSpec{Image: image}}
+	request := &pb.RemoveImageRequest{Image: &pb.ImageSpec{Image: image, RuntimeHandler: runtimeHandler}}
 	logrus.Debugf("RemoveImageRequest: %v", request)
 	if err := client.RemoveImage(context.TODO(), request.Image); err != nil {
 		return err

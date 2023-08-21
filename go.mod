@@ -1,6 +1,6 @@
 module github.com/kubernetes-sigs/cri-tools
 
-go 1.21
+go 1.20
 
 require (
 	github.com/distribution/reference v0.5.0

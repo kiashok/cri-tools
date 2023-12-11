@@ -374,15 +374,15 @@ func matchesRegex(pattern, target string) bool {
 	return matched
 }
 
-func matchesImage(imageClient internalapi.ImageManagerService, image string, containerImage string) (bool, error) {
+func matchesImage(imageClient internalapi.ImageManagerService, image string, containerImage string, runtimeHandler string) (bool, error) {
 	if image == "" {
 		return true, nil
 	}
-	r1, err := ImageStatus(imageClient, image, false)
+	r1, err := ImageStatus(imageClient, image, runtimeHandler, false)
 	if err != nil {
 		return false, err
 	}
-	r2, err := ImageStatus(imageClient, containerImage, false)
+	r2, err := ImageStatus(imageClient, containerImage, runtimeHandler, false)
 	if err != nil {
 		return false, err
 	}
@@ -393,8 +393,8 @@ func matchesImage(imageClient internalapi.ImageManagerService, image string, con
 	return r1.Image.Id == r2.Image.Id, nil
 }
 
-func getRepoImage(imageClient internalapi.ImageManagerService, image string) (string, error) {
-	r, err := ImageStatus(imageClient, image, false)
+func getRepoImage(imageClient internalapi.ImageManagerService, image string, runtimeHandler string) (string, error) {
+	r, err := ImageStatus(imageClient, image, runtimeHandler, false)
 	if err != nil {
 		return "", err
 	}

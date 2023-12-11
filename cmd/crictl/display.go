@@ -26,6 +26,7 @@ import (
 const (
 	columnContainer  = "CONTAINER"
 	columnImage      = "IMAGE"
+	columnRuntimeHandler = "RUNTIMEHANDLER"
 	columnImageID    = "IMAGE ID"
 	columnCreated    = "CREATED"
 	columnState      = "STATE"

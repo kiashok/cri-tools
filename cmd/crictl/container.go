@@ -1032,7 +1032,7 @@ func ListContainers(runtimeClient internalapi.RuntimeService, imageClient intern
 		display.AddRow([]string{columnContainer, columnImage, columnCreated, columnState, columnName, columnAttempt, columnPodID, columnPodname})
 	}
 	for _, c := range r {
-		if match, err := matchesImage(imageClient, opts.image, c.GetImage().GetImage()); err != nil {
+		if match, err := matchesImage(imageClient, opts.image, c.GetImage().GetRuntimeHandler(), c.GetImage().GetImage()); err != nil {
 			return fmt.Errorf("check image match: %w", err)
 		} else if !match {
 			continue
@@ -1057,7 +1057,7 @@ func ListContainers(runtimeClient internalapi.RuntimeService, imageClient intern
 				}
 			}
 			if opts.resolveImagePath {
-				orig, err := getRepoImage(imageClient, image)
+				orig, err := getRepoImage(imageClient, image, c.GetImage().GetRuntimeHandler())
 				if err != nil {
 					return fmt.Errorf("failed to fetch repo image %v", err)
 				}

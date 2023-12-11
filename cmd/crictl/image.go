@@ -197,7 +197,8 @@ var listImageCommand = &cli.Command{
 		quiet := c.Bool("quiet")
 		noTrunc := c.Bool("no-trunc")
 		if !verbose && !quiet {
-			row := []string{columnImage, columnTag}
+			row := []string{columnImage, columnRuntimeHandler, columnTag}
+		//	row = append(row, columnRuntimeHandler)
 			//after columnImage add runtimeHandler
 			if showDigest {
 				row = append(row, columnDigest)
@@ -211,19 +212,21 @@ var listImageCommand = &cli.Command{
 		for _, image := range r.Images {
 			if quiet {
 				fmt.Printf("%s\n", image.Id)
+				fmt.Printf("%s\n", image.Spec.RuntimeHandler)
 				continue
 			}
 			if !verbose {
 				imageName, repoDigest := normalizeRepoDigest(image.RepoDigests)
 				repoTagPairs := normalizeRepoTagPair(image.RepoTags, imageName)
 				size := units.HumanSizeWithPrecision(float64(image.GetSize_()), 3)
+				runtimeHandler := image.Spec.RuntimeHandler
 				id := image.Id
 				if !noTrunc {
 					id = getTruncatedID(id, "sha256:")
 					repoDigest = getTruncatedID(repoDigest, "sha256:")
 				}
 				for _, repoTagPair := range repoTagPairs {
-					row := []string{repoTagPair[0], repoTagPair[1]}
+					row := []string{repoTagPair[0], runtimeHandler, repoTagPair[1]}
 					if showDigest {
 						row = append(row, repoDigest)
 					}
@@ -236,6 +239,7 @@ var listImageCommand = &cli.Command{
 				continue
 			}
 			fmt.Printf("ID: %s\n", image.Id)
+			fmt.Printf("RUNTIMEHANDLER: %s\n", image.Spec.RuntimeHandler)
 			for _, tag := range image.RepoTags {
 				fmt.Printf("RepoTags: %s\n", tag)
 			}
@@ -281,6 +285,12 @@ var imageStatusCommand = &cli.Command{
 			Name:  "template",
 			Usage: "The template string is only used when output is go-template; The Template format is golang template",
 		},
+		&cli.StringFlag{
+			Name:    "runtime",
+			Aliases: []string{"r"},
+			Value:	"",
+			Usage:   "Runtime handler to be used to pull the image",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		if c.NArg() == 0 {
@@ -297,10 +307,11 @@ var imageStatusCommand = &cli.Command{
 			output = "json"
 		}
 		tmplStr := c.String("template")
+		runtimeHandler := c.String("runtime")
 		for i := 0; i < c.NArg(); i++ {
 			id := c.Args().Get(i)
 
-			r, err := ImageStatus(imageClient, id, verbose)
+			r, err := ImageStatus(imageClient, id, runtimeHandler, verbose)
 			if err != nil {
 				return fmt.Errorf("image status for %q request: %w", id, err)
 			}
@@ -380,6 +391,8 @@ var removeImageCommand = &cli.Command{
 
 		all := cliCtx.Bool("all")
 		prune := cliCtx.Bool("prune")
+		runtimeHandler := cliCtx.String("runtime")
+		fmt.Printf("runtimeHandler %v", runtimeHandler)
 
 		// Add all available images to the ID selector
 		if all || prune {
@@ -407,7 +420,7 @@ var removeImageCommand = &cli.Command{
 			}
 			for _, container := range containers {
 				img := container.GetImage().Image
-				imageStatus, err := ImageStatus(imageClient, img, false)
+				imageStatus, err := ImageStatus(imageClient, img, runtimeHandler, false)
 				if err != nil {
 					logrus.Errorf(
 						"image status request for %q failed: %v",
@@ -434,7 +447,7 @@ var removeImageCommand = &cli.Command{
 			if !remove {
 				continue
 			}
-			status, err := ImageStatus(imageClient, id, false)
+			status, err := ImageStatus(imageClient, id, runtimeHandler, false)
 			if err != nil {
 				logrus.Errorf("image status request for %q failed: %v", id, err)
 				errored = true
@@ -446,7 +459,7 @@ var removeImageCommand = &cli.Command{
 				continue
 			}
 
-			if err := RemoveImage(imageClient, id, cliCtx.String("runtime")); err != nil {
+			if err := RemoveImage(imageClient, id, runtimeHandler); err != nil {
 				// We ignore further errors on prune because there might be
 				// races
 				if !prune {
@@ -661,9 +674,9 @@ func ListImages(client internalapi.ImageManagerService, image string) (*pb.ListI
 
 // ImageStatus sends an ImageStatusRequest to the server, and parses
 // the returned ImageStatusResponse.
-func ImageStatus(client internalapi.ImageManagerService, image string, verbose bool) (*pb.ImageStatusResponse, error) {
+func ImageStatus(client internalapi.ImageManagerService, image string, runtimeHandler string, verbose bool) (*pb.ImageStatusResponse, error) {
 	request := &pb.ImageStatusRequest{
-		Image:   &pb.ImageSpec{Image: image},
+		Image:   &pb.ImageSpec{Image: image, RuntimeHandler: runtimeHandler},
 		Verbose: verbose,
 	}
 	logrus.Debugf("ImageStatusRequest: %v", request)
@@ -683,6 +696,7 @@ func RemoveImage(client internalapi.ImageManagerService, image string, runtimeHa
 	}
 	request := &pb.RemoveImageRequest{Image: &pb.ImageSpec{Image: image, RuntimeHandler: runtimeHandler}}
 	logrus.Debugf("RemoveImageRequest: %v", request)
+	fmt.Printf("RemoveImageRequest: %v", request)
 	if err := client.RemoveImage(context.TODO(), request.Image); err != nil {
 		return err
 	}

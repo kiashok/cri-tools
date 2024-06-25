@@ -536,7 +536,7 @@ k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/tracing
 k8s.io/component-base/tracing/api/v1
 k8s.io/component-base/version
-# k8s.io/cri-api v0.31.0-alpha.0.0.20240528091733-69e407966029
+# k8s.io/cri-api v0.31.0-alpha.0.0.20240528091733-69e407966029 => ../../k8s.io/kubernetes/staging/src/k8s.io/cri-api/
 ## explicit; go 1.22.0
 k8s.io/cri-api/pkg/apis
 k8s.io/cri-api/pkg/apis/runtime/v1
@@ -582,3 +582,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
+# k8s.io/cri-api => ../../k8s.io/kubernetes/staging/src/k8s.io/cri-api/
